@@ -1,0 +1,166 @@
+package com.tk.owspace_marst.player;
+
+import android.media.MediaPlayer;
+
+import com.orhanobut.logger.Logger;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Zhaolei
+ * 时间:2018/7/3
+ */
+
+public class Player implements IPlayback, MediaPlayer.OnCompletionListener, MediaPlayer.OnBufferingUpdateListener, MediaPlayer.OnPreparedListener, MediaPlayer.OnErrorListener {
+    private MediaPlayer mPlayer;
+    private static volatile Player sInstance;
+    private boolean isPaused;
+    private List<Callback> mCallbacks = new ArrayList<>(2);
+    private String song;
+
+    public Player() {
+        mPlayer = new MediaPlayer();
+        mPlayer.setOnCompletionListener(this);
+        mPlayer.setOnBufferingUpdateListener(this);
+        mPlayer.setOnPreparedListener(this);
+        mPlayer.setOnErrorListener(this);
+    }
+
+    public static Player getInstance() {
+        if (sInstance == null) {
+            synchronized (Player.class) {
+                if (sInstance == null) {
+                    sInstance = new Player();
+                }
+            }
+        }
+        return sInstance;
+    }
+
+    @Override
+    public void onBufferingUpdate(MediaPlayer mediaPlayer, int i) {
+
+    }
+
+    @Override
+    public void onCompletion(MediaPlayer mediaPlayer) {
+        Logger.d("onPrepared");
+        mPlayer.reset();
+        notifyPlayStatusChanged(PlayState.COMPLETE);
+    }
+
+    @Override
+    public boolean onError(MediaPlayer mediaPlayer, int i, int i1) {
+        notifyPlayStatusChanged(PlayState.ERROR);
+        return false;
+    }
+
+    @Override
+    public void onPrepared(MediaPlayer mediaPlayer) {
+        Logger.d("onPrepared");
+        mPlayer.start();
+        notifyPlayStatusChanged(PlayState.PLAYING);
+    }
+
+    @Override
+    public boolean play() {
+        if (isPaused) {
+            mPlayer.start();
+            notifyPlayStatusChanged(PlayState.PLAYING);
+            return true;
+        }
+        return false;
+    }
+
+    private void notifyPlayStatusChanged(PlayState status) {
+        for (Callback callback : mCallbacks) {
+            callback.onPlayStatusChanged(status);
+        }
+    }
+
+    @Override
+    public boolean play(String song) {
+        try {
+            mPlayer.reset();
+            mPlayer.setDataSource(song);
+            mPlayer.prepare();
+            this.song = song;
+            notifyPlayStatusChanged(PlayState.PLAYING);
+            return true;
+        } catch (IOException e) {
+            notifyPlayStatusChanged(PlayState.ERROR);
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    @Override
+    public boolean pause() {
+        if (mPlayer.isPlaying()) {
+            mPlayer.pause();
+            isPaused = true;
+            notifyPlayStatusChanged(PlayState.PAUSE);
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public boolean isPlaying() {
+        return mPlayer.isPlaying();
+    }
+
+    @Override
+    public int getProgress() {
+        return mPlayer.getCurrentPosition();
+    }
+
+    @Override
+    public int getDuration() {
+        return mPlayer.getDuration();
+    }
+
+    public void setPaused(boolean paused) {
+        this.isPaused = paused;
+    }
+
+    @Override
+    public boolean seekTo(int progress) {
+        try {
+            mPlayer.seekTo(progress);
+        } catch (IllegalStateException e) {
+            e.printStackTrace();
+        }
+        return true;
+    }
+
+    @Override
+    public void registerCallback(Callback callback) {
+        mCallbacks.add(callback);
+    }
+
+    @Override
+    public void unregisterCallback(Callback callback) {
+        mCallbacks.remove(callback);
+    }
+
+    @Override
+    public void removeCallbacks() {
+        mCallbacks.clear();
+    }
+
+    @Override
+    public void releasePlayer() {
+        mPlayer.reset();
+        mPlayer.release();
+        mPlayer = null;
+        sInstance = null;
+        song = null;
+    }
+
+    public String getSong() {
+        return song;
+    }
+}
